@@ -1,0 +1,22 @@
+# MatchTrack – Idea Pitch
+
+## Naziv projekta
+**MatchTrack** – web aplikacija za organizaciju amaterskih sportskih termina
+
+## Problem
+Dogovori za mali nogomet i slična sportska okupljanja često se odvijaju u chat grupama, što dovodi do konfuzije oko toga tko dolazi, kasnih odustajanja i nepostojanja jasne evidencije rezultata i sudjelovanja.
+
+## Ciljani korisnici
+Amaterske sportske ekipe (nogomet, futsal, košarka i sl.) koje se povremeno ili redovito okupljaju i žele jasniju organizaciju termina te jednostavan pregled sudjelovanja i osnovne statistike igrača.
+
+## Predloženo rješenje
+MatchTrack omogućuje:
+- brzo kreiranje termina,
+- jednostavnu prijavu dolaska (“Dolazim / Ne dolazim”) jednim klikom,
+- bilježenje rezultata nakon odigranog termina,
+- vođenje osnovne statistike poput broja dolazaka i postignutih golova.
+
+Na taj način olakšava se organizacija i uvodi element lagane konkurentnosti kroz pregled statistike sudionika.
+
+## Kako je ideja nastala
+Ideja je proizašla iz osobnog iskustva dogovaranja termina s ekipom za mali nogomet, gdje su se dogovori često odvijali kaotično putem chat aplikacija. Uočena je potreba za jednostavnim digitalnim alatom koji bi rješavao problem organizacije i unio dodatnu motivaciju kroz evidenciju i statistiku.
