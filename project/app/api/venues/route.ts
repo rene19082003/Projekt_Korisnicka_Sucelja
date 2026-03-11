@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import type { SportTip } from "@/components/common/ui/sportTypes";
 import { SPORT_LABEL } from "@/components/common/ui/sportTypes";
 
@@ -21,43 +22,46 @@ function parseSportovi(raw: unknown): SportTip[] {
     return [];
   }
   if (!Array.isArray(parsed)) return [];
-
- 
-  const valid = parsed.filter((s): s is SportTip => typeof s === "string" && s in SPORT_LABEL);
-
-  
+  const valid = parsed.filter(
+    (s): s is SportTip => typeof s === "string" && s in SPORT_LABEL
+  );
   return Array.from(new Set(valid));
 }
 
 export async function POST(req: Request) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
     const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: "", ...options });
-          },
+
+    // ✅ 1) Anon client za auth (session cookies)
+    const server = createServerClient(supabaseUrl, anonKey, {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
         },
-      }
-    );
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: "", ...options });
+        },
+      },
+    });
 
     const {
       data: { user },
       error: userErr,
-    } = await supabase.auth.getUser();
+    } = await server.auth.getUser();
 
     if (userErr || !user) {
       return NextResponse.json({ error: "Niste prijavljeni." }, { status: 401 });
     }
+
+    // ✅ 2) Service client samo za DB/storage
+    const svc = createServiceClient(supabaseUrl, serviceKey);
 
     const form = await req.formData();
 
@@ -65,21 +69,24 @@ export async function POST(req: Request) {
     const adresa = String(form.get("adresa") ?? "").trim();
     const opis = String(form.get("opis") ?? "").trim();
 
-   
     const sportoviRaw = form.get("sportovi");
-    const sportovi = parseSportovi(typeof sportoviRaw === "string" ? sportoviRaw : "");
+    const sportovi = parseSportovi(sportoviRaw);
 
     if (!naziv || !adresa) {
-      return NextResponse.json({ error: "Naziv i adresa su obavezni." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Naziv i adresa su obavezni." },
+        { status: 400 }
+      );
     }
 
     if (sportovi.length === 0) {
-      return NextResponse.json({ error: "Odaberite barem jedan sport." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Odaberite barem jedan sport." },
+        { status: 400 }
+      );
     }
 
-    const aktivni_eventovi = 0;
-
-    // Optional file upload
+    // Optional upload
     const file = form.get("file");
     let imageUrl = "/venues/default.jpg";
 
@@ -90,7 +97,7 @@ export async function POST(req: Request) {
       const path = `venues/${filename}`;
       const arrayBuffer = await f.arrayBuffer();
 
-      const { data: upData, error: upErr } = await supabase.storage
+      const { data: upData, error: upErr } = await svc.storage
         .from("venue-image")
         .upload(path, Buffer.from(arrayBuffer), {
           contentType: f.type || "image/jpeg",
@@ -105,19 +112,21 @@ export async function POST(req: Request) {
         );
       }
 
-      const { data: pub } = supabase.storage.from("venue-image").getPublicUrl(upData.path);
+      const { data: pub } = svc.storage
+        .from("venue-image")
+        .getPublicUrl(upData.path);
+
       imageUrl = pub.publicUrl;
     }
 
-   
-    const { data: inserted, error: insErr } = await supabase
+    const { data: inserted, error: insErr } = await svc
       .from("venues")
       .insert({
         naziv,
         adresa,
         opis,
-        aktivnosti: sportovi,         
-        aktivni_eventovi,
+        aktivnosti: sportovi, // ✅ array SportTip
+        aktivni_eventovi: 0,
         autor_lokacije_id: user.id,
         slika: imageUrl,
       })

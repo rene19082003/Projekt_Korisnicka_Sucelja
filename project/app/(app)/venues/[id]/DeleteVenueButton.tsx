@@ -33,12 +33,11 @@ export default function DeleteVenueButton({
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        // ✅ dovoljno je samo push (bez refresh)
         router.push("/venues");
-        router.refresh();
         return;
       }
 
-      // Poruke iz API-ja (409, 403, 401...)
       setMsg(data?.error ?? "Greška pri brisanju.");
     } catch {
       setMsg("Greška pri brisanju.");

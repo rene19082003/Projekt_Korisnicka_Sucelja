@@ -8,6 +8,8 @@
   display: grid;
   place-items: center;
   padding: 24px;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .modal {
@@ -21,6 +23,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: auto;
 }
 
 .header {
@@ -71,12 +74,14 @@
   .overlay {
     padding: 12px;
     place-items: end center; /* modal dolje (ugodnije na mobu) */
+    pointer-events: auto;
   }
 
   .modal {
     width: 100%;
     max-height: calc(100vh - 24px);
     border-radius: 18px;
+    pointer-events: auto;
   }
 
   .header {

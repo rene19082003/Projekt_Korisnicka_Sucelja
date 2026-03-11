@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -16,15 +16,17 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // ✅ STABILAN client (ključna stvar)
+  const supabase = useMemo(() => createClient(), []);
+
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createClient();
-
   const refreshUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
+    await refreshAdmin(user);
   };
 
   const refreshAdmin = async (u: User | null) => {
@@ -37,28 +39,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .from("profiles")
       .select("is_admin")
       .eq("id", u.id)
-      .single();
+      .maybeSingle(); // sigurnije od single()
 
-    if (error) {
+    if (error || !data) {
       setIsAdmin(false);
       return;
     }
 
-    setIsAdmin(!!data?.is_admin);
+    setIsAdmin(!!data.is_admin);
   };
 
   useEffect(() => {
-    // Initial user + admin load
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    let mounted = true;
+
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!mounted) return;
+
       setUser(user);
       await refreshAdmin(user);
       setLoading(false);
-    });
+    };
 
-    // Listen to auth state changes
+    init();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const u = session?.user ?? null;
+
         setUser(u);
         await refreshAdmin(u);
         setLoading(false);
@@ -66,15 +74,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
-
-  }, []);
+  }, [supabase]);
 
   const logout = async () => {
+    setLoading(true);
     await supabase.auth.signOut();
     setUser(null);
     setIsAdmin(false);
+    setLoading(false);
   };
 
   const isAuthenticated = !!user;

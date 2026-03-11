@@ -9,22 +9,27 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { eventId: string } }
+  { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const eventId = Number(params.eventId);
+    // ✅ Next 15+: params može biti Promise -> moraš await
+    const { eventId: rawId } = await params;
+
+    // ✅ stroga validacija (samo znamenke)
+    if (!rawId || !/^\d+$/.test(rawId)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid event id" },
+        { status: 400 }
+      );
+    }
+
+    // bigint u Postgresu -> šalji kao string u eq
+    const eventId = rawId;
 
     if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) {
       return NextResponse.json(
         { success: false, error: "Missing Supabase config" },
         { status: 500 }
-      );
-    }
-
-    if (!Number.isFinite(eventId)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid event id" },
-        { status: 400 }
       );
     }
 
@@ -42,7 +47,15 @@ export async function DELETE(
 
     const {
       data: { user },
+      error: userErr,
     } = await server.auth.getUser();
+
+    if (userErr) {
+      return NextResponse.json(
+        { success: false, error: userErr.message },
+        { status: 401 }
+      );
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -51,7 +64,7 @@ export async function DELETE(
       );
     }
 
-    // Service client for DB ops
+    // Service client for DB ops (bypass RLS)
     const svc = createServiceClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     // admin check
@@ -59,7 +72,7 @@ export async function DELETE(
       .from("profiles")
       .select("is_admin")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (profErr) {
       return NextResponse.json(
@@ -75,9 +88,16 @@ export async function DELETE(
       .from("events")
       .select("id, created_by, venue_id")
       .eq("id", eventId)
-      .single();
+      .maybeSingle();
 
-    if (evErr || !ev) {
+    if (evErr) {
+      return NextResponse.json(
+        { success: false, error: evErr.message },
+        { status: 500 }
+      );
+    }
+
+    if (!ev) {
       return NextResponse.json(
         { success: false, error: "Not found" },
         { status: 404 }
@@ -107,10 +127,7 @@ export async function DELETE(
     }
 
     // Delete event
-    const { error: delErr } = await svc
-      .from("events")
-      .delete()
-      .eq("id", eventId);
+    const { error: delErr } = await svc.from("events").delete().eq("id", eventId);
 
     if (delErr) {
       return NextResponse.json(
@@ -119,20 +136,17 @@ export async function DELETE(
       );
     }
 
-    // Optional: keep venue counter consistent (ako ga koristiš)
+    // Optional: keep venue counter consistent
     if (ev.venue_id) {
       const { data: venue } = await svc
         .from("venues")
         .select("aktivni_eventovi")
         .eq("id", ev.venue_id)
-        .single();
+        .maybeSingle();
 
       const next = Math.max(0, Number(venue?.aktivni_eventovi ?? 0) - 1);
 
-      await svc
-        .from("venues")
-        .update({ aktivni_eventovi: next })
-        .eq("id", ev.venue_id);
+      await svc.from("venues").update({ aktivni_eventovi: next }).eq("id", ev.venue_id);
     }
 
     return NextResponse.json({ success: true });

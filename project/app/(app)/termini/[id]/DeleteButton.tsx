@@ -11,6 +11,7 @@ export default function DeleteEventButton({ eventId }: { eventId: number }) {
   const [msg, setMsg] = useState("");
 
   const onDelete = async () => {
+    console.log("eventId:", eventId, typeof eventId);
     setMsg("");
 
     const ok = window.confirm(

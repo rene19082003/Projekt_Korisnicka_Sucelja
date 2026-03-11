@@ -13,7 +13,10 @@ type Props = {
 
 export default function AddVenueModal({ open, onClose, onCreated }: Props) {
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      document.body.style.overflow = "";
+      return;
+    }
 
     document.body.style.overflow = "hidden";
 
@@ -34,14 +37,14 @@ export default function AddVenueModal({ open, onClose, onCreated }: Props) {
   return (
     <div
       className={styles.overlay}
-      onMouseDown={onClose}
+      onPointerDown={(e) => {
+        // ✅ zatvori samo ako je klik stvarno na overlay (ne na sadržaj)
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="dialog"
       aria-modal="true"
     >
-      <div
-        className={styles.modal}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+      <div className={styles.modal}>
         <div className={styles.header}>
           <div>
             <h2 className={styles.title}>Kreiraj novu lokaciju</h2>
@@ -54,6 +57,7 @@ export default function AddVenueModal({ open, onClose, onCreated }: Props) {
             className={styles.closeBtn}
             onClick={onClose}
             aria-label="Zatvori"
+            type="button"
           >
             ✕
           </button>
@@ -62,8 +66,8 @@ export default function AddVenueModal({ open, onClose, onCreated }: Props) {
         <AddVenueForm
           onCancel={onClose}
           onCreated={(v) => {
+            // samo proslijedi parentu; parent će zatvorit preko setAddOpen(false)
             onCreated(v);
-            onClose();
           }}
         />
       </div>

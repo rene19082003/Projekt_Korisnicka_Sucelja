@@ -1,63 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { MapPin, ArrowRight, ArrowLeft, Eye,Plus } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { MapPin, ArrowRight, ArrowLeft, Eye, Plus } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { getVenues, Venue } from "./data";
 import styles from "./venues.module.css";
 import AddVenueModal from "./AddVenueModal";
-import {createClient } from "@/lib/supabase/client";
-import { useMemo } from "react";
+import { getVenues, type Venue } from "./data";
+import { createClient } from "@/lib/supabase/client";
+
+import type { SportTip } from "@/components/common/ui/sportTypes";
+import { SPORT_LABEL } from "@/components/common/ui/sportTypes";
 
 
+import { useAuth } from "@/app/authentication/auth/AuthContext";
 
 export default function VenuesPage() {
-
   const supabase = useMemo(() => createClient(), []);
+
+  const { user, isAdmin, loading: authLoading } = useAuth();
 
   const [venues, setVenues] = useState<Venue[]>([]);
   const [search, setSearch] = useState("");
+
   const [canCreateVenue, setCanCreateVenue] = useState(false);
+  const [permLoading, setPermLoading] = useState(true);
+
   const [addOpen, setAddOpen] = useState(false);
 
-  useEffect(() => {
-    const loadPerm = async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) {
-        setCanCreateVenue(false);
-        return;
-      }
-
-      
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("can_create_venue")
-        .eq("id", u.user.id)
-        .single();
-
-      setCanCreateVenue(!error && !!data?.can_create_venue);
-    };
-
-    loadPerm();
-  }, [supabase]);
-
-  const filtered = venues.filter((v) => {
-    const q = search.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      v.naziv.toLowerCase().includes(q) ||
-      v.adresa.toLowerCase().includes(q) ||
-      v.sportovi.some((s) => s.toLowerCase().includes(q))
-    );
-  });
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const limitItems = 9;
-  const totalPages = Math.ceil(filtered.length / limitItems);
-  const start = (currentPage - 1) * limitItems;
-  const items = filtered.slice(start, start + limitItems);
-
+  // ✅ učitaj venues
   useEffect(() => {
     const load = async () => {
       const data = await getVenues();
@@ -66,9 +37,74 @@ export default function VenuesPage() {
     load();
   }, []);
 
+  const userId = user?.id ?? null;
+
+useEffect(() => {
+  const loadPerm = async () => {
+    if (authLoading) {
+      setPermLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setCanCreateVenue(false);
+      setPermLoading(false);
+      return;
+    }
+
+    // ✅ ako već znaš da može kreirati, nemoj zaključat UI dok refetch-aš
+    if (canCreateVenue || isAdmin) {
+      // možeš čak i preskočiti refetch ovdje
+      setPermLoading(false);
+      return;
+    }
+
+    setPermLoading(true);
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("can_create_venue")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!error) setCanCreateVenue(!!data?.can_create_venue);
+
+    setPermLoading(false);
+  };
+
+  loadPerm();
+}, [authLoading, userId, supabase, canCreateVenue, isAdmin]);
+
+  // ✅ helper za label sporta
+  const sportLabel = (s: string) => {
+    const key = s as SportTip;
+    return SPORT_LABEL[key] ?? s;
+  };
+
+  // ✅ filter
+  const filtered = venues.filter((v) => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+
+    return (
+      v.naziv.toLowerCase().includes(q) ||
+      v.adresa.toLowerCase().includes(q) ||
+      v.sportovi.some((s) => sportLabel(s).toLowerCase().includes(q))
+    );
+  });
+
+  // ✅ paginacija
+  const [currentPage, setCurrentPage] = useState(1);
+  const limitItems = 9;
+  const totalPages = Math.ceil(filtered.length / limitItems);
+  const start = (currentPage - 1) * limitItems;
+  const items = filtered.slice(start, start + limitItems);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
+
+  const canShowCreateBtn = isAdmin || canCreateVenue;
 
   return (
     <main className={styles.page}>
@@ -81,9 +117,16 @@ export default function VenuesPage() {
           </p>
         </div>
 
-        {canCreateVenue && (
-          <button onClick={() => setAddOpen(true)} className={styles.createBtn}>
-            <Plus className={styles.plus}/>
+        {/* ✅ gumb više ne “nestaje” random */}
+        {canShowCreateBtn && (
+          <button
+            onClick={() => setAddOpen(true)}
+            className={styles.createBtn}
+            disabled={authLoading}
+            aria-disabled={authLoading}
+            title={authLoading ? "Učitavam..." : "Dodaj lokaciju"}
+          >
+            <Plus className={styles.plus} />
             Dodaj lokaciju
           </button>
         )}
@@ -136,7 +179,7 @@ export default function VenuesPage() {
                 <div className={styles.sportTags}>
                   {venue.sportovi.map((sport) => (
                     <span key={sport} className={styles.sportTag}>
-                      {sport}
+                      {sportLabel(sport)}
                     </span>
                   ))}
                 </div>
@@ -188,10 +231,10 @@ export default function VenuesPage() {
         onClose={() => setAddOpen(false)}
         onCreated={(newVenue) => {
           setVenues((prev) => [newVenue, ...prev]);
+          setAddOpen(false);
         }}
+        
       />
     </main>
-
-    
   );
 }
