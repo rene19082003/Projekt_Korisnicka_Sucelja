@@ -20,7 +20,7 @@
 
 ### Semester Project
 
-- Link to your production version: [**Production Version**](https://projekt-korisnicka-sucelja-m9jgbcjpp-renatos-projects-337a747c.vercel.app) <!-- Replace with actual URL -->
+- Link to your production version: [**Production Version**](https://projekt-korisnicka-sucelja-4cqrs08nn-renatos-projects-337a747c.vercel.app/) <!-- Replace with actual URL -->
 - Link to your final report: [**Final Report**](https://github.com/rene19082003/Projekt_Korisnicka_Sucelja/blob/main/Final%20report.md) <!-- Replace with actual URL -->
 <!-- Add more as necessary -->
 
